@@ -70,7 +70,7 @@ def build() -> tuple[Path, str]:
             }
         }
     }
-    UPDATES_PATH.write_text(canonical_json(updates), encoding="utf-8")
+    UPDATES_PATH.write_bytes(canonical_json(updates).encode("utf-8"))
     return output, digest
 
 
