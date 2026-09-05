@@ -1,7 +1,8 @@
 /* Local-only Zotero endpoint. No filesystem channel, library writes, or shell execution. */
-var BRIDGE_VERSION = '0.1.0';
+var BRIDGE_VERSION = '0.1.1';
 var ZOTERO_VERSION = '9.0.6';
 var ENDPOINT_PATH = '/word-zotero-bridge/v1/command';
+var HEALTH_ENDPOINT_PATH = '/word-zotero-bridge/v1/health';
 var TARGET_COLLECTION = 'MC8W6IIE';
 var MAX_BATCH_JOBS = 256;
 
@@ -9,15 +10,44 @@ var bridgeFactory;
 var validateBatch;
 var sessionToken;
 var endpointConstructor;
+var healthEndpointConstructor;
 var currentBatch = null;
 var bridge = null;
 var waitingAck = null;
 var handling = false;
 var disabled = false;
 var lastResult = null;
+var startupDiagnostic = {
+  ok: false,
+  version: BRIDGE_VERSION,
+  state: 'not-started',
+  step: 'bootstrap',
+  error: null
+};
 
 function response(code, value) {
   return [code, 'application/json', JSON.stringify(value)];
+}
+
+function diagnosticState() {
+  return {
+    ...startupDiagnostic,
+    zoteroVersion: Zotero.version,
+    endpoint: ENDPOINT_PATH,
+    healthEndpoint: HEALTH_ENDPOINT_PATH
+  };
+}
+
+function registerHealthEndpoint() {
+  healthEndpointConstructor = function () {};
+  healthEndpointConstructor.prototype = {
+    supportedMethods: ['GET', 'POST'],
+    supportedDataTypes: ['application/json'],
+    async init() {
+      return response(startupDiagnostic.ok ? 200 : 503, diagnosticState());
+    }
+  };
+  Zotero.Server.Endpoints[HEALTH_ENDPOINT_PATH] = healthEndpointConstructor;
 }
 
 function publicState() {
@@ -144,42 +174,74 @@ async function handleCommand(command) {
   return publicState();
 }
 
-async function startup({rootURI}) {
-  await Zotero.initializationPromise;
-  if (Zotero.version !== ZOTERO_VERSION) {
-    throw new Error('Word Zotero Bridge requires Zotero ' + ZOTERO_VERSION);
-  }
-  const scope = {};
-  Services.scriptloader.loadSubScript(rootURI + 'bridge.js', scope);
-  Services.scriptloader.loadSubScript(rootURI + 'batch-policy.js', scope);
-  bridgeFactory = scope.createWordZoteroBridge;
-  validateBatch = scope.validateWordZoteroBatch;
-  if (typeof bridgeFactory !== 'function' || typeof validateBatch !== 'function') {
-    throw new Error('Bridge modules failed to load');
-  }
+async function startup({resourceURI, rootURI}) {
+  try {
+    startupDiagnostic = {...startupDiagnostic, state: 'starting', step: 'zotero-initialization', error: null};
+    await Zotero.initializationPromise;
 
-  sessionToken = Services.uuid.generateUUID().toString().replace(/[{}]/g, '')
-    + Services.uuid.generateUUID().toString().replace(/[{}]/g, '');
-
-  endpointConstructor = function () {};
-  endpointConstructor.prototype = {
-    supportedMethods: ['POST'],
-    supportedDataTypes: ['application/json'],
-    async init(request) {
-      if (handling) return response(409, {ok: false, error: 'Bridge is busy'});
-      handling = true;
-      try {
-        return response(200, await handleCommand(request.data));
-      } catch (error) {
-        Zotero.logError(error);
-        return response(400, {ok: false, error: String(error?.message || error), ...publicState()});
-      } finally {
-        handling = false;
-      }
+    startupDiagnostic.step = 'health-endpoint';
+    if (!Zotero.Server || !Zotero.Server.Endpoints) {
+      throw new Error('Zotero local server endpoints are unavailable');
     }
-  };
-  Zotero.Server.Endpoints[ENDPOINT_PATH] = endpointConstructor;
-  Zotero.debug('Word Zotero Bridge ready at ' + ENDPOINT_PATH);
+    registerHealthEndpoint();
+
+    startupDiagnostic.step = 'version-check';
+    if (Zotero.version !== ZOTERO_VERSION) {
+      throw new Error('Word Zotero Bridge requires Zotero ' + ZOTERO_VERSION);
+    }
+
+    startupDiagnostic.step = 'resource-root';
+    const moduleRoot = typeof rootURI === 'string'
+      ? rootURI
+      : rootURI?.spec || resourceURI?.spec;
+    if (!moduleRoot) throw new Error('Zotero did not provide the extension resource URI');
+
+    startupDiagnostic.step = 'bridge-module';
+    const bridgeScope = {};
+    Services.scriptloader.loadSubScript(moduleRoot + 'bridge.js', bridgeScope);
+    bridgeFactory = bridgeScope.createWordZoteroBridge;
+    if (typeof bridgeFactory !== 'function') throw new Error('bridge.js did not export createWordZoteroBridge');
+
+    startupDiagnostic.step = 'batch-policy-module';
+    const policyScope = {};
+    Services.scriptloader.loadSubScript(moduleRoot + 'batch-policy.js', policyScope);
+    validateBatch = policyScope.validateWordZoteroBatch;
+    if (typeof validateBatch !== 'function') throw new Error('batch-policy.js did not export validateWordZoteroBatch');
+
+    startupDiagnostic.step = 'session-token';
+    sessionToken = Services.uuid.generateUUID().toString().replace(/[{}]/g, '')
+      + Services.uuid.generateUUID().toString().replace(/[{}]/g, '');
+
+    startupDiagnostic.step = 'command-endpoint';
+    endpointConstructor = function () {};
+    endpointConstructor.prototype = {
+      supportedMethods: ['POST'],
+      supportedDataTypes: ['application/json'],
+      async init(request) {
+        if (handling) return response(409, {ok: false, error: 'Bridge is busy'});
+        handling = true;
+        try {
+          return response(200, await handleCommand(request.data));
+        } catch (error) {
+          Zotero.logError(error);
+          return response(400, {ok: false, error: String(error?.message || error), ...publicState()});
+        } finally {
+          handling = false;
+        }
+      }
+    };
+    Zotero.Server.Endpoints[ENDPOINT_PATH] = endpointConstructor;
+    startupDiagnostic = {...startupDiagnostic, ok: true, state: 'ready', step: 'complete', error: null};
+    Zotero.debug('Word Zotero Bridge ready at ' + ENDPOINT_PATH);
+  } catch (error) {
+    startupDiagnostic = {
+      ...startupDiagnostic,
+      ok: false,
+      state: 'failed',
+      error: String(error?.message || error)
+    };
+    Zotero.logError(error);
+  }
 }
 
 function shutdown() {
@@ -190,6 +252,9 @@ function shutdown() {
   waitingAck = null;
   if (Zotero.Server.Endpoints[ENDPOINT_PATH] === endpointConstructor) {
     delete Zotero.Server.Endpoints[ENDPOINT_PATH];
+  }
+  if (Zotero.Server.Endpoints[HEALTH_ENDPOINT_PATH] === healthEndpointConstructor) {
+    delete Zotero.Server.Endpoints[HEALTH_ENDPOINT_PATH];
   }
 }
 

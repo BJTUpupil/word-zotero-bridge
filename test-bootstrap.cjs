@@ -60,7 +60,7 @@ async function fixture() {
   };
   vm.createContext(scope);
   vm.runInContext(fs.readFileSync(__dirname + '/bootstrap.js', 'utf8'), scope);
-  await scope.startup({rootURI: 'file://fixture/'});
+  await scope.startup({resourceURI: {spec: 'file://fixture/'}});
   const Endpoint = scope.Zotero.Server.Endpoints['/word-zotero-bridge/v1/command'];
   const endpoint = new Endpoint();
   async function call(command) {
@@ -101,6 +101,16 @@ async function test(name, run) {
     assert.equal(result.body.state, 'ready');
     assert.equal(result.body.collection, 'MC8W6IIE');
     assert.ok(result.body.session);
+  });
+
+  await test('registers a diagnostic health endpoint when resourceURI supplies the module root', async () => {
+    const f = await fixture();
+    const Health = f.scope.Zotero.Server.Endpoints['/word-zotero-bridge/v1/health'];
+    const result = await new Health().init({data: {}});
+    assert.equal(result[0], 200);
+    const body = JSON.parse(result[2]);
+    assert.equal(body.state, 'ready');
+    assert.equal(body.step, 'complete');
   });
 
   await test('rejects mutation commands with a wrong session', async () => {
@@ -165,6 +175,7 @@ async function test(name, run) {
     assert.equal(result.body.state, 'disabled');
     f.scope.shutdown();
     assert.equal(f.scope.Zotero.Server.Endpoints['/word-zotero-bridge/v1/command'], undefined);
+    assert.equal(f.scope.Zotero.Server.Endpoints['/word-zotero-bridge/v1/health'], undefined);
   });
 
   console.log('TOTAL', checks, 'bootstrap endpoint checks; live Word/Zotero not tested');

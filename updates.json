@@ -3,9 +3,9 @@
     "word-zotero-bridge@bjtupupil.github.io": {
       "updates": [
         {
-          "version": "0.1.0",
-          "update_link": "https://github.com/BJTUpupil/word-zotero-bridge/releases/download/v0.1.0/word-zotero-bridge-0.1.0.xpi",
-          "update_hash": "sha256:0b4c620cab0b13d9d743e139059db787df71ab72836db3a2992f214a8aa349dd",
+          "version": "0.1.1",
+          "update_link": "https://github.com/BJTUpupil/word-zotero-bridge/releases/download/v0.1.1/word-zotero-bridge-0.1.1.xpi",
+          "update_hash": "sha256:2df48b02d32bba20cc25a289b50361b83000f9b2c7c96a8af889b6e5ebe2e51d",
           "applications": {
             "zotero": {
               "strict_min_version": "9.0.6",
