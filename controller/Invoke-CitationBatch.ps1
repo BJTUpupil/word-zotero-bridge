@@ -156,7 +156,7 @@ function Get-CitationSnapshot($Document) {
             $codes.Add($code)
         }
     }
-    return ,$codes.ToArray()
+    return $codes.ToArray()
 }
 
 function Write-Journal([string]$Path, $Journal) {

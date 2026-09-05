@@ -22,4 +22,7 @@ foreach ($required in @(
         throw ('Missing controller safety contract: ' + $required)
     }
 }
+if ($source -match 'return\s+[,]\$codes\.ToArray\(\)') {
+    throw 'Citation snapshots must not be wrapped as a nested array.'
+}
 Write-Host 'PASS controller syntax and safety-contract checks'
