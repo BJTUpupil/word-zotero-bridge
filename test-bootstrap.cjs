@@ -137,7 +137,6 @@ async function test(name, run) {
         batchId: batch.id,
         id: job.id,
         verified: true,
-        documentSHA256: 'a'.repeat(64),
         citationFieldCount: 71
       });
       assert.equal(result.body.state, 'prepared');
@@ -150,7 +149,6 @@ async function test(name, run) {
       batchId: batch.id,
       id: 'final-refresh',
       verified: true,
-      documentSHA256: 'b'.repeat(64),
       citationFieldCount: 126
     });
     assert.equal(result.body.state, 'ready');

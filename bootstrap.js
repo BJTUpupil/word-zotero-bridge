@@ -1,5 +1,5 @@
 /* Local-only Zotero endpoint. No filesystem channel, library writes, or shell execution. */
-var BRIDGE_VERSION = '0.1.3';
+var BRIDGE_VERSION = '0.1.4';
 var ZOTERO_VERSION = '9.0.6';
 var ENDPOINT_PATH = '/word-zotero-bridge/v1/command';
 var HEALTH_ENDPOINT_PATH = '/word-zotero-bridge/v1/health';
@@ -136,7 +136,6 @@ async function handleCommand(command) {
       !waitingAck ||
       command.id !== waitingAck ||
       command.verified !== true ||
-      !/^[a-f0-9]{64}$/i.test(command.documentSHA256 || '') ||
       !Number.isInteger(command.citationFieldCount) ||
       command.citationFieldCount < 0
     ) {
@@ -147,7 +146,6 @@ async function handleCommand(command) {
       state: 'acknowledged',
       batchId: currentBatch.id,
       id: completedId,
-      documentSHA256: command.documentSHA256.toLowerCase(),
       citationFieldCount: command.citationFieldCount
     };
     waitingAck = null;

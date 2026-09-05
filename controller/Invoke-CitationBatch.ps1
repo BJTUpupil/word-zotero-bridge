@@ -246,14 +246,12 @@ try {
         if (-not ($after | Where-Object { $_ -match [regex]::Escape([string]$job.key) })) {
             throw ('Saved Zotero field does not contain item key ' + [string]$job.key)
         }
-        $hash = (Get-FileHash -LiteralPath $paths.Target -Algorithm SHA256).Hash.ToLowerInvariant()
         Invoke-Bridge $client $Endpoint @{
             action = 'ack'
             session = $session
             batchId = [string]$config.id
             id = [string]$job.id
             verified = $true
-            documentSHA256 = $hash
             citationFieldCount = $after.Count
         } | Out-Null
         $journal.jobs += [ordered]@{
@@ -261,7 +259,6 @@ try {
             key = [string]$job.key
             anchorStart = $anchorStart
             citationFieldCount = $after.Count
-            documentSHA256 = $hash
             completedAt = [DateTimeOffset]::Now.ToString('o')
         }
         Write-Journal $journalPath $journal
@@ -283,19 +280,16 @@ try {
     if ($afterRefresh.Count -ne $beforeRefresh.Count) {
         throw 'Final Zotero refresh changed the citation field count.'
     }
-    $finalHash = (Get-FileHash -LiteralPath $paths.Target -Algorithm SHA256).Hash.ToLowerInvariant()
     Invoke-Bridge $client $Endpoint @{
         action = 'ack'
         session = $session
         batchId = [string]$config.id
         id = 'final-refresh'
         verified = $true
-        documentSHA256 = $finalHash
         citationFieldCount = $afterRefresh.Count
     } | Out-Null
     $journal.state = 'completed'
     $journal.completedAt = [DateTimeOffset]::Now.ToString('o')
-    $journal.finalSHA256 = $finalHash
     $journal.finalCitationFieldCount = $afterRefresh.Count
     Write-Journal $journalPath $journal
     Write-Host ('Completed. Verified target: ' + $paths.Target)
