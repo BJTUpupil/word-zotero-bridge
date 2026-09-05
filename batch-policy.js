@@ -60,4 +60,4 @@
   }
 
   scope.validateWordZoteroBatch = validateBatch;
-})(globalThis);
+})(this);

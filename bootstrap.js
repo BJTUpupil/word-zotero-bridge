@@ -1,5 +1,5 @@
 /* Local-only Zotero endpoint. No filesystem channel, library writes, or shell execution. */
-var BRIDGE_VERSION = '0.1.2';
+var BRIDGE_VERSION = '0.1.3';
 var ZOTERO_VERSION = '9.0.6';
 var ENDPOINT_PATH = '/word-zotero-bridge/v1/command';
 var HEALTH_ENDPOINT_PATH = '/word-zotero-bridge/v1/health';

@@ -118,4 +118,4 @@
     return { run, stop() { stopped = true; }, get busy() { return busy; }, get stopped() { return stopped || fatal; } };
   }
   scope.createWordZoteroBridge = createBridge;
-})(globalThis);
+})(this);
