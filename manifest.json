@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Word Zotero Bridge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local, fail-closed batch bridge for inserting native Zotero citations into verified Word document copies.",
   "author": "BJTUpupil",
   "homepage_url": "https://github.com/BJTUpupil/word-zotero-bridge",

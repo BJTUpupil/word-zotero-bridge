@@ -106,6 +106,7 @@ async function test(name, run) {
   await test('registers a diagnostic health endpoint when resourceURI supplies the module root', async () => {
     const f = await fixture();
     const Health = f.scope.Zotero.Server.Endpoints['/word-zotero-bridge/v1/health'];
+    assert.equal(Health.prototype.init.length, 1);
     const result = await new Health().init({data: {}});
     assert.equal(result[0], 200);
     const body = JSON.parse(result[2]);
