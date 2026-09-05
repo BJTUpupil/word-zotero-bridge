@@ -1,0 +1,20 @@
+{
+  "id": "citation-batch-001",
+  "collection": "MC8W6IIE",
+  "projectRoot": "G:\\your-paper-project",
+  "sourceDocument": "G:\\your-paper-project\\paper-source.docx",
+  "document": "G:\\your-paper-project\\.word-zotero-bridge\\work\\paper-citation-batch-001.docx",
+  "jobs": [
+    {
+      "id": "cite-001",
+      "key": "DFAU8KU8",
+      "title": "Exact Zotero title",
+      "doi": "10.0000/example",
+      "anchor": {
+        "text": "[[ZCITE:cite-001]]",
+        "occurrence": 1,
+        "position": "replace"
+      }
+    }
+  ]
+}

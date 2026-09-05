@@ -1,0 +1,12 @@
+{
+  "name": "word-zotero-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fail-closed local bridge for native Zotero citation insertion in Word.",
+  "scripts": {
+    "test": "node test-policy.cjs && node test-bridge.cjs && node test-bootstrap.cjs && powershell.exe -NoProfile -ExecutionPolicy Bypass -File test-controller.ps1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

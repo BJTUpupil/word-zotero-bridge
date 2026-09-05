@@ -1,0 +1,19 @@
+{
+  "addons": {
+    "word-zotero-bridge@bjtupupil.github.io": {
+      "updates": [
+        {
+          "version": "0.1.0",
+          "update_link": "https://raw.githubusercontent.com/BJTUpupil/word-zotero-bridge/main/dist/word-zotero-bridge-0.1.0.xpi",
+          "update_hash": "sha256:0b4c620cab0b13d9d743e139059db787df71ab72836db3a2992f214a8aa349dd",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "9.0.6",
+              "strict_max_version": "9.0.6"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
