@@ -13,6 +13,7 @@ MANIFEST_PATH = ROOT / "manifest.json"
 UPDATES_PATH = ROOT / "updates.json"
 PACKAGE_FILES = ("manifest.json", "bootstrap.js", "bridge.js", "batch-policy.js")
 REPOSITORY_RAW = "https://raw.githubusercontent.com/BJTUpupil/word-zotero-bridge/main"
+REPOSITORY_RELEASE = "https://github.com/BJTUpupil/word-zotero-bridge/releases/download"
 
 
 def canonical_json(value: object) -> str:
@@ -56,7 +57,7 @@ def build() -> tuple[Path, str]:
                 "updates": [
                     {
                         "version": version,
-                        "update_link": f"{REPOSITORY_RAW}/dist/{output.name}",
+                        "update_link": f"{REPOSITORY_RELEASE}/v{version}/{output.name}",
                         "update_hash": f"sha256:{digest}",
                         "applications": {
                             "zotero": {

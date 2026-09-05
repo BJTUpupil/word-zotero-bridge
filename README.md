@@ -16,7 +16,7 @@
 
 XPI 安装包：
 
-    https://raw.githubusercontent.com/BJTUpupil/word-zotero-bridge/main/dist/word-zotero-bridge-0.1.0.xpi
+    https://github.com/BJTUpupil/word-zotero-bridge/releases/download/v0.1.0/word-zotero-bridge-0.1.0.xpi
 
 ## 工作方式
 
