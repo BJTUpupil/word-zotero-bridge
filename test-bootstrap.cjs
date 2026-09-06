@@ -177,6 +177,19 @@ async function test(name, run) {
     assert.equal(f.scope.Zotero.Server.Endpoints['/word-zotero-bridge/v1/health'], undefined);
   });
 
+  await test('reset clears an interrupted batch without disabling the bridge', async () => {
+    const f = await fixture();
+    const batch = f.batch('recoverable', 1);
+    let result = await f.call({action: 'prepare', session: f.session, batch});
+    assert.equal(result.body.state, 'prepared');
+    result = await f.call({action: 'insert', session: f.session, batchId: batch.id, id: batch.jobs[0].id});
+    assert.equal(result.body.state, 'waiting-for-ack');
+    result = await f.call({action: 'reset', session: f.session});
+    assert.equal(result.body.state, 'ready');
+    result = await f.call({action: 'prepare', session: f.session, batch});
+    assert.equal(result.body.state, 'prepared');
+  });
+
   console.log('TOTAL', checks, 'bootstrap endpoint checks; live Word/Zotero not tested');
 })().catch(error => {
   console.error(error);

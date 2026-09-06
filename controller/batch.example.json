@@ -6,7 +6,22 @@
   "document": "G:\\your-paper-project\\.word-zotero-bridge\\work\\paper-citation-batch-001.docx",
   "jobs": [
     {
+      "id": "replace-001",
+      "action": "replace",
+      "fieldOrdinal": 12,
+      "expectedKeys": ["OLDKEY01", "KEEPKEY1"],
+      "replacements": [
+        {
+          "oldKey": "OLDKEY01",
+          "key": "NEWKEY01",
+          "title": "Exact title of the target Zotero item",
+          "doi": "10.0000/replacement"
+        }
+      ]
+    },
+    {
       "id": "cite-001",
+      "action": "insert",
       "key": "DFAU8KU8",
       "title": "Exact Zotero title",
       "doi": "10.0000/example",

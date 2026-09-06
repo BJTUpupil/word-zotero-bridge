@@ -1,5 +1,5 @@
 /* Local-only Zotero endpoint. No filesystem channel, library writes, or shell execution. */
-var BRIDGE_VERSION = '0.1.4';
+var BRIDGE_VERSION = '0.1.6';
 var ZOTERO_VERSION = '9.0.6';
 var ENDPOINT_PATH = '/word-zotero-bridge/v1/command';
 var HEALTH_ENDPOINT_PATH = '/word-zotero-bridge/v1/health';
@@ -77,19 +77,22 @@ async function validateItems(batch) {
   const collection = await Zotero.Collections.getByLibraryAndKey(libraryID, TARGET_COLLECTION);
   if (!collection) throw new Error('Target collection is unavailable: ' + TARGET_COLLECTION);
   for (const job of batch.jobs) {
-    const item = await Zotero.Items.getByLibraryAndKey(libraryID, job.key);
-    if (!item || item.deleted || !item.isRegularItem()) {
-      throw new Error('Missing, deleted, or non-parent item: ' + job.key);
-    }
-    if (!item.getCollections().includes(collection.id)) {
-      throw new Error('Item is outside the target collection: ' + job.key);
-    }
-    const actualTitle = String(item.getField('title') || '').trim().toLowerCase();
-    const expectedTitle = job.title.trim().toLowerCase();
-    const actualDOI = String(item.getField('DOI') || '').trim().toLowerCase();
-    const expectedDOI = job.doi.trim().toLowerCase();
-    if (actualTitle !== expectedTitle || actualDOI !== expectedDOI) {
-      throw new Error('Item identity changed: ' + job.key);
+    const targets = (job.action || 'insert') === 'replace' ? job.replacements : [job];
+    for (const target of targets) {
+      const item = await Zotero.Items.getByLibraryAndKey(libraryID, target.key);
+      if (!item || item.deleted || !item.isRegularItem()) {
+        throw new Error('Missing, deleted, or non-parent item: ' + target.key);
+      }
+      if (!item.getCollections().includes(collection.id)) {
+        throw new Error('Item is outside the target collection: ' + target.key);
+      }
+      const actualTitle = String(item.getField('title') || '').trim().toLowerCase();
+      const expectedTitle = target.title.trim().toLowerCase();
+      const actualDOI = String(item.getField('DOI') || '').trim().toLowerCase();
+      const expectedDOI = target.doi.trim().toLowerCase();
+      if (actualTitle !== expectedTitle || actualDOI !== expectedDOI) {
+        throw new Error('Item identity changed: ' + target.key);
+      }
     }
   }
 }
@@ -108,6 +111,15 @@ async function handleCommand(command) {
     bridge = null;
     waitingAck = null;
     lastResult = { state: 'stopped' };
+    return publicState();
+  }
+  if (command.action === 'reset') {
+    if (bridge?.busy) throw new Error('Cannot reset while native integration is active');
+    bridge?.stop();
+    currentBatch = null;
+    bridge = null;
+    waitingAck = null;
+    lastResult = { state: 'reset' };
     return publicState();
   }
   if (disabled) throw new Error('Bridge is disabled until Zotero restarts');
@@ -157,7 +169,7 @@ async function handleCommand(command) {
   }
 
   if (waitingAck) throw new Error('Verify and acknowledge the saved document before continuing');
-  if (!['insert', 'refresh'].includes(command.action)) throw new Error('Unsupported bridge action');
+  if (!['insert', 'replace', 'refresh'].includes(command.action)) throw new Error('Unsupported bridge action');
   if (command.action === 'refresh' && command.id !== 'final-refresh') {
     throw new Error('Refresh requires id=final-refresh');
   }

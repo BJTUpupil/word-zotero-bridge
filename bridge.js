@@ -8,18 +8,24 @@
     const expires = Math.min(config.expiresAt, now() + 30 * 60 * 1000);
     const normalize = p => String(p).replaceAll('/', '\\').toLowerCase();
     const reject = message => { throw new Error(message); };
-    if (!Array.isArray(config.jobs) || config.jobs.length < 1 || config.jobs.length > 256) reject('Batch must contain 1-256 insertion jobs');
+    if (!Array.isArray(config.jobs) || config.jobs.length < 1 || config.jobs.length > 256) reject('Batch must contain 1-256 jobs');
     if (new Set(config.jobs.map(j => j.id)).size !== config.jobs.length) reject('Duplicate job IDs');
     if (config.collection !== 'MC8W6IIE') reject('Collection not authorized');
-    async function validate(job) {
+    async function validateTarget(target) {
       if (Z.version !== '9.0.6') reject('Unsupported Zotero version');
       const collection = await Z.Collections.getByLibraryAndKey(Z.Libraries.userLibraryID, config.collection);
-      const item = await Z.Items.getByLibraryAndKey(Z.Libraries.userLibraryID, job.key);
+      const item = await Z.Items.getByLibraryAndKey(Z.Libraries.userLibraryID, target.key);
       if (!collection || !item || item.deleted || !item.isRegularItem()) reject('Missing/deleted/non-parent item');
       if (!item.getCollections().includes(collection.id)) reject('Item outside target collection');
-      if (item.getField('title').trim().toLowerCase() !== job.title.toLowerCase()) reject('Item title mismatch');
-      if (item.getField('DOI').trim().toLowerCase() !== job.doi.toLowerCase()) reject('Item DOI mismatch');
+      if (item.getField('title').trim().toLowerCase() !== target.title.toLowerCase()) reject('Item title mismatch');
+      if (item.getField('DOI').trim().toLowerCase() !== target.doi.toLowerCase()) reject('Item DOI mismatch');
       return item;
+    }
+    async function validate(job) {
+      if ((job.action || 'insert') === 'replace') {
+        return Promise.all(job.replacements.map(validateTarget));
+      }
+      return validateTarget(job);
     }
     async function run(request) {
       if (busy) return { state: 'busy' };
@@ -28,13 +34,13 @@
       if (request.action === 'stop') { stopped = true; return { state: 'stopped' }; }
       const refresh = request.action === 'refresh' && request.id === 'final-refresh';
       const job = config.jobs.find(j => j.id === request.id);
-      if ((!refresh && (request.action !== 'insert' || !job)) || used.has(request.id)) return { state: 'rejected' };
+      if ((!refresh && (!['insert', 'replace'].includes(request.action) || !job || request.action !== (job.action || 'insert'))) || used.has(request.id)) return { state: 'rejected' };
       if (refresh && acceptedCount !== config.jobs.length) return { state: 'rejected' };
       if (!refresh && job !== config.jobs[acceptedCount]) return { state: 'rejected' };
       if (I.currentDoc) return { state: 'integration-busy' };
       // Consumed before native entry: never retry a potentially partial insertion.
       used.add(request.id); busy = true;
-      let item, selected = false, failure = null, targetDoc = null;
+      let validated, selected = false, failure = null, targetDoc = null;
       const restorations = [];
       function replace(object, name, replacement) {
         const original = object[name];
@@ -52,7 +58,7 @@
       }
       try {
         await emit({ id: request.id, state: 'running' });
-        if (!refresh) item = await validate(job);
+        if (!refresh) validated = await validate(job);
         const nativeExec = I.execCommand;
         const nativeApp = I.getApplication;
         replace(I, 'execCommand', async function () { abort('Concurrent integration command blocked'); });
@@ -82,13 +88,32 @@
             if (refresh || selected || I.currentDoc !== targetDoc || !targetDoc) reject('Unexpected citation dialog');
             if (stopped || now() >= expires) reject('Trial expired');
             if (!io?.citation || typeof io.accept !== 'function' || typeof io.cancel !== 'function') reject('Incompatible picker interface');
-            if (io.citation.citationItems.length) reject('Cursor is inside an existing citation');
+            const replacing = (job.action || 'insert') === 'replace';
+            if (!replacing && io.citation.citationItems.length) reject('Cursor is inside an existing citation');
+            if (replacing && !io.citation.citationItems.length) reject('Cursor is not inside an existing citation');
             await io.allCitedDataLoadedPromise;
             if (failure) reject(failure);
-            item = await validate(job);
-            // Supply only the selection, exactly as the native picker does.
-            // Zotero owns serialization, citeproc formatting, and Word field writes.
-            io.citation.citationItems = [{ id: item.id }];
+            validated = await validate(job);
+            if (replacing) {
+              for (let index = 0; index < job.replacements.length; index++) {
+                const replacement = job.replacements[index];
+                const target = validated[index];
+                const matches = io.citation.citationItems.filter(citationItem => {
+                  const uris = Array.isArray(citationItem.uris) ? citationItem.uris : [];
+                  return uris.some(uri => String(uri).endsWith('/items/' + replacement.oldKey)) ||
+                    String(citationItem.itemData?.id || '') === replacement.oldKey;
+                });
+                if (matches.length !== 1) reject('Expected exactly one old citation item: ' + replacement.oldKey);
+                const citationItem = matches[0];
+                citationItem.id = target.id;
+                delete citationItem.uris;
+                delete citationItem.itemData;
+              }
+            } else {
+              // Supply only the selection, exactly as the native picker does.
+              // Zotero owns serialization, citeproc formatting, and Word field writes.
+              io.citation.citationItems = [{ id: validated.id }];
+            }
             selected = true;
             io.accept();
           } catch (error) {
@@ -112,7 +137,7 @@
       }
       if (!refresh) acceptedCount++;
       else stopped = true;
-      const result = { id: request.id, state: 'native-complete-unverified', acceptedCount, key: job?.key || null };
+      const result = { id: request.id, state: 'native-complete-unverified', acceptedCount, key: job?.key || null, action: job?.action || null };
       await emit(result); return result;
     }
     return { run, stop() { stopped = true; }, get busy() { return busy; }, get stopped() { return stopped || fatal; } };

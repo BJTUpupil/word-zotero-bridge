@@ -22,6 +22,18 @@ const check = batch => scope.validateWordZoteroBatch(batch);
 
 assert.equal(check(valid()).jobs.length, 1);
 let checks = 1;
+{
+  const batch = valid();
+  batch.jobs = [{
+    id: 'replace1',
+    action: 'replace',
+    fieldOrdinal: 3,
+    expectedKeys: ['OLDAAAAA'],
+    replacements: [{oldKey: 'OLDAAAAA', key: 'NEWAAAAA', title: 'Paper', doi: '10/example'}]
+  }];
+  assert.equal(check(batch).jobs[0].fieldOrdinal, 3);
+  checks++;
+}
 for (const path of [
   'G:/paper-project/source.docx',
   'G:/paper-project/.word-zotero-bridge/work/../source.docx',
@@ -50,6 +62,23 @@ for (const mutate of [
 ]) {
   const batch = valid();
   mutate(batch);
+  assert.throws(() => check(batch));
+  checks++;
+}
+for (const mutate of [
+  job => { job.fieldOrdinal = 0; },
+  job => { job.expectedKeys = []; },
+  job => { job.expectedKeys = ['BAD']; },
+  job => { job.replacements[0].oldKey = 'MISSING1'; },
+  job => { job.replacements[0].key = 'OLDAAAAA'; }
+]) {
+  const batch = valid();
+  const job = {
+    id: 'replace1', action: 'replace', fieldOrdinal: 1,
+    expectedKeys: ['OLDAAAAA'],
+    replacements: [{oldKey: 'OLDAAAAA', key: 'NEWAAAAA', title: 'Paper', doi: ''}]
+  };
+  mutate(job); batch.jobs = [job];
   assert.throws(() => check(batch));
   checks++;
 }

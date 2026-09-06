@@ -7,7 +7,7 @@ const factory = scope.createWordZoteroBridge;
 let total = 0;
 function fixture(options = {}) {
   const events = [];
-  const config = { nonce: 'test-nonce', expiresAt: 9999999, collection: 'MC8W6IIE', document: 'G:\\paper-project\\.word-zotero-bridge\\work\\trial.docx', jobs: Array.from({length:options.count || 5}, (_,i) => ({id:'insert-'+(i+1),key:'KEY'+i,title:'Paper '+i,doi:'doi-'+i})) };
+  const config = { nonce: 'test-nonce', expiresAt: 9999999, collection: 'MC8W6IIE', document: 'G:\\paper-project\\.word-zotero-bridge\\work\\trial.docx', jobs: options.jobs || Array.from({length:options.count || 5}, (_,i) => ({id:'insert-'+(i+1),key:'KEY'+i,title:'Paper '+i,doi:'doi-'+i})) };
   class Cancel extends Error {}
   const doc = {displayAlert:async()=>{}, cleanup:async()=>{}};
   const app = {getDocument:async()=>doc,getActiveDocument:async()=>doc};
@@ -25,7 +25,7 @@ function fixture(options = {}) {
         if (options.otherDialog) { await I.displayDialog('unexpected','',{},'documentPreferences'); return; }
         let resolve;
         const promise=new Promise(r=>resolve=r);
-        const io={citation:{citationItems:options.existing?[{id:99}]:[]},allCitedDataLoadedPromise:Promise.resolve(),accept(){resolve();},cancel(){this.citation.citationItems=[];resolve();}};
+        const io={citation:{citationItems:options.existingItems || (options.existing?[{id:99}]:[])},allCitedDataLoadedPromise:Promise.resolve(),accept(){resolve();},cancel(){this.citation.citationItems=[];resolve();}};
         I.displayDialog('chrome://zotero/content/integration/citationDialog.xhtml','',io,'citation');
         await promise;
         events.push({selected:io.citation.citationItems.map(x=>x.id)});
@@ -58,6 +58,17 @@ async function test(name, fn) {await fn(); total++; console.log('PASS',name);}
  await test('duplicate job is never inserted twice',async()=>{
    const f=fixture(); await f.bridge.run(f.req(1)); assert.equal((await f.bridge.run(f.req(1))).state,'rejected');
    assert.equal(f.events.filter(e=>e.selected).length,1);
+ });
+ await test('existing citation item is relinked through the native picker',async()=>{
+   const jobs=[{id:'replace-1',action:'replace',fieldOrdinal:1,expectedKeys:['OLDKEY01'],replacements:[{oldKey:'OLDKEY01',key:'KEY1',title:'Paper 1',doi:'doi-1'}]}];
+   const current=[{id:'legacy',uris:['http://zotero.org/users/1/items/OLDKEY01'],locator:'7',label:'page'}];
+   const f=fixture({jobs,existingItems:current});
+   const result=await f.bridge.run({nonce:'test-nonce',action:'replace',id:'replace-1'});
+   assert.equal(result.state,'native-complete-unverified');
+   assert.deepEqual(f.events.find(e=>e.selected).selected,[101]);
+   assert.equal(current[0].locator,'7');
+   assert.equal(current[0].label,'page');
+   assert.equal(current[0].uris,undefined);
  });
  for(const option of ['outside','deleted','wrongTitle','wrongDoc','existing','wordPrompt','otherDialog']) {
    await test(option+' fails closed and restores hooks',async()=>{
